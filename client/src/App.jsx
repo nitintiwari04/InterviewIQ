@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./Pages/Dashboard";
 import InterviewSetup from "./Pages/InterviewSetup";
 import Interview from "./Pages/Interview";
+import InterviewResult from "./Pages/InterviewResult";
 
 function App() {
     return (
@@ -38,6 +39,11 @@ function App() {
                     path="*"
                     element={<Navigate to="/dashboard" replace />}
                 />
+
+                <Route
+                   path="/interview/result"
+                   element={<InterviewResult />}
+/>
 
             </Routes>
         </BrowserRouter>
