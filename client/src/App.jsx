@@ -1,49 +1,82 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+import Login from "./Pages/Login";
+import Register from "./Pages/Register";
 import Dashboard from "./Pages/Dashboard";
 import InterviewSetup from "./Pages/InterviewSetup";
 import Interview from "./Pages/Interview";
 import InterviewResult from "./Pages/InterviewResult";
+import ResumeUpload from "./Pages/ResumeUpload";
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
     return (
         <BrowserRouter>
             <Routes>
 
-                {/* Default */}
+                {/* Public Routes */}
                 <Route
-                    path="/"
-                    element={<Navigate to="/dashboard" replace />}
+                    path="/login"
+                    element={<Login />}
                 />
 
-                {/* Dashboard */}
+                <Route
+                    path="/register"
+                    element={<Register />}
+                />
+
+                {/* Protected Routes */}
                 <Route
                     path="/dashboard"
-                    element={<Dashboard />}
+                    element={
+                        <ProtectedRoute>
+                            <Dashboard />
+                        </ProtectedRoute>
+                    }
                 />
 
-                {/* Interview Setup */}
+                <Route
+                    path="/resume"
+                    element={
+                        <ProtectedRoute>
+                            <ResumeUpload />
+                        </ProtectedRoute>
+                    }
+                />
+
                 <Route
                     path="/interview/setup"
-                    element={<InterviewSetup />}
+                    element={
+                        <ProtectedRoute>
+                            <InterviewSetup />
+                        </ProtectedRoute>
+                    }
                 />
 
-                {/* Actual Interview */}
                 <Route
                     path="/interview"
-                    element={<Interview />}
+                    element={
+                        <ProtectedRoute>
+                            <Interview />
+                        </ProtectedRoute>
+                    }
                 />
 
-                {/* Unknown URL */}
+                <Route
+                    path="/interview/result"
+                    element={
+                        <ProtectedRoute>
+                            <InterviewResult />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* Default Route */}
                 <Route
                     path="*"
-                    element={<Navigate to="/dashboard" replace />}
+                    element={<Login />}
                 />
-
-                <Route
-                   path="/interview/result"
-                   element={<InterviewResult />}
-/>
 
             </Routes>
         </BrowserRouter>

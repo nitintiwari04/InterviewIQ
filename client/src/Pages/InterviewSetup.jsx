@@ -9,8 +9,9 @@ function InterviewSetup() {
     const [difficulty, setDifficulty] = useState("");
     const [interviewType, setInterviewType] = useState("");
     const [questionCount, setQuestionCount] = useState(5);
+    const [loading, setLoading] = useState(false);
 
-    const handleStartInterview = (e) => {
+    const handleStartInterview = async (e) => {
         e.preventDefault();
 
         if (
@@ -23,26 +24,67 @@ function InterviewSetup() {
             return;
         }
 
-        const interviewConfig = {
-            role,
-            experienceLevel,
-            difficulty,
-            interviewType,
-            questionCount
-        };
+        const token = localStorage.getItem("token");
 
-        localStorage.setItem(
-            "interviewConfig",
-            JSON.stringify(interviewConfig)
-        );
+        if (!token) {
+            alert("Please login first.");
+            navigate("/login");
+            return;
+        }
 
-        navigate("/interview");
+        setLoading(true);
+
+        try {
+            const response = await fetch(
+                "http://localhost:5000/api/interviews",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        role,
+                        experienceLevel,
+                        difficulty,
+                        interviewType,
+                        questionCount
+                    })
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                alert(data.message || "Failed to create interview.");
+                return;
+            }
+
+            // Save the complete interview returned by backend
+            localStorage.setItem(
+                "currentInterview",
+                JSON.stringify(data.interview)
+            );
+
+            // Save remaining credits
+            localStorage.setItem(
+                "credits",
+                data.creditsRemaining
+            );
+
+            navigate("/interview");
+
+        } catch (error) {
+            console.error("Start Interview Error:", error);
+            alert("Unable to connect to server.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
         <div className="setup-page">
 
-            {/* Header */}
             <header className="setup-header">
 
                 <button
@@ -59,7 +101,6 @@ function InterviewSetup() {
 
             </header>
 
-            {/* Main */}
             <main className="setup-main">
 
                 <div className="setup-title">
@@ -81,7 +122,6 @@ function InterviewSetup() {
                     onSubmit={handleStartInterview}
                 >
 
-                    {/* Role */}
                     <div className="form-group">
 
                         <label htmlFor="role">
@@ -120,11 +160,11 @@ function InterviewSetup() {
                             <option value="DevOps Engineer">
                                 DevOps Engineer
                             </option>
+
                         </select>
 
                     </div>
 
-                    {/* Experience */}
                     <div className="form-group">
 
                         <label htmlFor="experience">
@@ -150,7 +190,7 @@ function InterviewSetup() {
                                 Junior (0–2 years)
                             </option>
 
-                            <option value="Mid Level">
+                            <option value="Mid-Level">
                                 Mid Level (2–5 years)
                             </option>
 
@@ -162,7 +202,6 @@ function InterviewSetup() {
 
                     </div>
 
-                    {/* Difficulty */}
                     <div className="form-group">
 
                         <label htmlFor="difficulty">
@@ -194,7 +233,6 @@ function InterviewSetup() {
 
                     </div>
 
-                    {/* Interview Type */}
                     <div className="form-group">
 
                         <label htmlFor="interviewType">
@@ -228,7 +266,6 @@ function InterviewSetup() {
 
                     </div>
 
-                    {/* Question Count */}
                     <div className="form-group">
 
                         <label htmlFor="questionCount">
@@ -242,36 +279,52 @@ function InterviewSetup() {
                                 setQuestionCount(Number(e.target.value))
                             }
                         >
-                            <option value={5}>5 Questions</option>
-                            <option value={10}>10 Questions</option>
-                            <option value={15}>15 Questions</option>
-                            <option value={20}>20 Questions</option>
+                            <option value={5}>
+                                5 Questions
+                            </option>
+
+                            <option value={10}>
+                                10 Questions
+                            </option>
+
+                            <option value={15}>
+                                15 Questions
+                            </option>
+
+                            <option value={20}>
+                                20 Questions
+                            </option>
+
                         </select>
 
                     </div>
 
-                    {/* Summary */}
                     <div className="setup-summary">
 
                         <div>
                             <span>⚡</span>
+
                             <div>
                                 <strong>Interview Credit</strong>
+
                                 <p>
-                                    10 credit will be used for this interview
+                                    100 credits will be used for this interview
                                 </p>
                             </div>
                         </div>
 
                     </div>
 
-                    {/* Submit */}
                     <button
                         type="submit"
                         className="start-interview-btn"
+                        disabled={loading}
                     >
-                        Start AI Interview
-                        <span>→</span>
+                        {loading
+                            ? "Generating AI Interview..."
+                            : "Start AI Interview"}
+
+                        {!loading && <span>→</span>}
                     </button>
 
                 </form>

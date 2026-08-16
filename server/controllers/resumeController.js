@@ -1,5 +1,5 @@
 const fs = require("fs");
-const pdfParse = require("pdf-parse");
+const { PDFParse } = require("pdf-parse");
 
 const Resume = require("../models/Resume");
 
@@ -16,11 +16,16 @@ const uploadResume = async (req, res) => {
 
         const pdfBuffer = fs.readFileSync(req.file.path);
 
-        const pdfData = await pdfParse(pdfBuffer);
+        // pdf-parse v2.x API
+        const parser = new PDFParse({
+            data: pdfBuffer
+        });
+
+        const pdfData = await parser.getText();
+
+        await parser.destroy();
 
         const extractedText = pdfData.text.trim();
-
-        const aiAnalysis = await analyzeResume(extractedText);
 
         if (!extractedText) {
             return res.status(400).json({
@@ -28,6 +33,9 @@ const uploadResume = async (req, res) => {
                 message: "Could not extract text from the PDF"
             });
         }
+
+        // Analyze resume using AI
+        const aiAnalysis = await analyzeResume(extractedText);
 
         const resume = await Resume.create({
             user: req.user._id,
@@ -48,6 +56,8 @@ const uploadResume = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Resume Upload Error:", error);
+
         res.status(500).json({
             success: false,
             message: error.message

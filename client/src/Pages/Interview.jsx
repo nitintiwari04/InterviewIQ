@@ -39,7 +39,6 @@ function Interview() {
         }
     ];
 
-    // Load interview configuration
     useEffect(() => {
         const savedConfig = localStorage.getItem("interviewConfig");
 
@@ -48,22 +47,12 @@ function Interview() {
             return;
         }
 
-        try {
-            setConfig(JSON.parse(savedConfig));
-        } catch (error) {
-            console.error("Invalid interview configuration:", error);
-            navigate("/interview/setup");
-        }
+        setConfig(JSON.parse(savedConfig));
     }, [navigate]);
 
-    // Timer
     useEffect(() => {
-        if (!config) {
-            return;
-        }
-
         if (timeLeft <= 0) {
-            handleNext(answer);
+            handleNext();
             return;
         }
 
@@ -72,7 +61,7 @@ function Interview() {
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [timeLeft, config]);
+    }, [timeLeft]);
 
     const formatTime = () => {
         const minutes = Math.floor(timeLeft / 60);
@@ -83,26 +72,24 @@ function Interview() {
         ).padStart(2, "0")}`;
     };
 
-    const handleNext = (currentAnswer = answer) => {
-        const updatedAnswers = [
-            ...answers,
-            {
-                questionNumber: currentQuestion,
+    const saveCurrentAnswer = () => {
+        setAnswers((prev) => {
+            const updatedAnswers = [...prev];
+
+            updatedAnswers[currentQuestion - 1] = {
                 question: questions[currentQuestion - 1].question,
                 category: questions[currentQuestion - 1].category,
-                answer: currentAnswer.trim()
-            }
-        ];
+                answer: answer.trim()
+            };
 
-        setAnswers(updatedAnswers);
+            return updatedAnswers;
+        });
+    };
+
+    const handleNext = () => {
+        saveCurrentAnswer();
 
         if (currentQuestion >= questions.length) {
-            localStorage.setItem(
-                "interviewAnswers",
-                JSON.stringify(updatedAnswers)
-            );
-
-            navigate("/interview/result");
             return;
         }
 
@@ -119,21 +106,42 @@ function Interview() {
 
         setIsSubmitting(true);
 
+        const updatedAnswers = [...answers];
+
+        updatedAnswers[currentQuestion - 1] = {
+            question: questions[currentQuestion - 1].question,
+            category: questions[currentQuestion - 1].category,
+            answer: answer.trim()
+        };
+
+        setAnswers(updatedAnswers);
+
         setTimeout(() => {
             setIsSubmitting(false);
-            handleNext(answer);
+
+            if (currentQuestion >= questions.length) {
+                localStorage.setItem(
+                    "interviewAnswers",
+                    JSON.stringify(updatedAnswers)
+                );
+
+                localStorage.setItem(
+                    "completedInterview",
+                    JSON.stringify({
+                        config,
+                        questions,
+                        answers: updatedAnswers
+                    })
+                );
+
+                navigate("/interview/result");
+                return;
+            }
+
+            setCurrentQuestion((prev) => prev + 1);
+            setAnswer("");
+            setTimeLeft(120);
         }, 500);
-    };
-
-    const handleExit = () => {
-        const confirmExit = window.confirm(
-            "Are you sure you want to exit the interview? Your current progress will be lost."
-        );
-
-        if (confirmExit) {
-            localStorage.removeItem("interviewAnswers");
-            navigate("/dashboard");
-        }
     };
 
     if (!config) {
@@ -172,7 +180,7 @@ function Interview() {
 
             </header>
 
-            {/* Progress Bar */}
+            {/* Progress */}
             <div className="progress-container">
                 <div
                     className="progress-bar"
@@ -187,7 +195,6 @@ function Interview() {
             {/* Main */}
             <main className="interview-main">
 
-                {/* Interview Info */}
                 <div className="interview-info">
 
                     <div>
@@ -201,14 +208,12 @@ function Interview() {
                     <div className="interview-details">
                         <span>{config.role}</span>
                         <span>•</span>
-                        <span>{config.experienceLevel}</span>
-                        <span>•</span>
                         <span>{config.difficulty}</span>
                     </div>
 
                 </div>
 
-                {/* AI Question */}
+                {/* Question */}
                 <section className="question-card">
 
                     <div className="ai-avatar">
@@ -244,7 +249,6 @@ function Interview() {
                         value={answer}
                         onChange={(e) => setAnswer(e.target.value)}
                         placeholder="Type your answer here..."
-                        disabled={isSubmitting}
                     />
 
                     <p className="answer-tip">
@@ -259,8 +263,7 @@ function Interview() {
 
                     <button
                         className="exit-btn"
-                        onClick={handleExit}
-                        disabled={isSubmitting}
+                        onClick={() => navigate("/dashboard")}
                     >
                         Exit Interview
                     </button>
