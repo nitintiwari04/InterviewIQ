@@ -2,277 +2,159 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 function InterviewResult() {
-
     const navigate = useNavigate();
 
-    const [interview, setInterview] =
-        useState(null);
+    const [interview, setInterview] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [downloading, setDownloading] = useState(false);
 
-    const [loading, setLoading] =
-        useState(true);
-
-    const [downloading, setDownloading] =
-        useState(false);
-
-    const token =
-        localStorage.getItem("token");
-
-    const interviewId =
-        localStorage.getItem(
-            "currentInterviewId"
-        );
-
+    const token = localStorage.getItem("token");
+    const interviewId = localStorage.getItem("currentInterviewId");
 
     useEffect(() => {
-
         const fetchResult = async () => {
-
             if (!token || !interviewId) {
-
                 navigate("/dashboard");
-
                 return;
             }
 
-
             try {
-
-                const response =
-                    await fetch(
-                        `http://localhost:5000/api/interviews/${interviewId}`,
-                        {
-                            headers: {
-                                Authorization:
-                                    `Bearer ${token}`
-                            }
+                const response = await fetch(
+                    `http://localhost:5000/api/interviews/${interviewId}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`
                         }
-                    );
+                    }
+                );
 
+                const data = await response.json();
 
-                const data =
-                    await response.json();
-
-
-                if (
-                    !response.ok ||
-                    !data.success
-                ) {
-
-                    alert(
-                        data.message ||
-                        "Unable to load interview result"
-                    );
-
+                if (!response.ok || !data.success) {
+                    alert(data.message || "Unable to load interview result");
                     navigate("/dashboard");
-
                     return;
                 }
 
-
-                setInterview(
-                    data.interview
-                );
+                setInterview(data.interview);
 
             } catch (error) {
-
-                console.error(
-                    "Result error:",
-                    error
-                );
-
-                alert(
-                    "Unable to load interview result."
-                );
-
+                console.error("Result fetch error:", error);
+                alert("Unable to load interview result.");
                 navigate("/dashboard");
-
             } finally {
-
                 setLoading(false);
-
             }
         };
 
-
         fetchResult();
-
-    }, [
-        token,
-        interviewId,
-        navigate
-    ]);
-
+    }, [token, interviewId, navigate]);
 
     const handleDownload = () => {
-
         if (!interview) return;
 
         setDownloading(true);
 
+        const questions = interview.questions
+            .map(
+                (question, index) => `
+Question ${index + 1}:
+${question.question}
+
+Your Answer:
+${question.answer || "Not answered"}
+
+Score:
+${question.score || 0}/100
+
+Feedback:
+${question.feedback || "No feedback available"}
+
+----------------------------------------
+`
+            )
+            .join("\n");
 
         const summary = `
-
-InterviewIQ - Interview Summary
+INTERVIEWIQ - INTERVIEW SUMMARY
+========================================
 
 Role: ${interview.role}
-
-Experience Level:
-${interview.experienceLevel}
-
-Difficulty:
-${interview.difficulty}
+Experience Level: ${interview.experienceLevel}
+Difficulty: ${interview.difficulty}
 
 Overall Score:
 ${interview.overallScore}/100
 
-Questions:
-${interview.questions.length}
-
-Strengths:
-${(interview.strengths || [])
-    .map(
-        (item) => `- ${item}`
-    )
-    .join("\n")}
-
-Areas for Improvement:
-${(interview.improvements || [])
-    .map(
-        (item) => `- ${item}`
-    )
-    .join("\n")}
-
 Overall Feedback:
 ${interview.overallFeedback}
 
-Question-wise Performance:
+Questions:
+${interview.questions.length}
 
-${interview.questions
-    .map(
-        (q, index) => `
-Question ${index + 1}:
-${q.question}
-
-Your Answer:
-${q.answer}
-
-Score:
-${q.score}/100
-
-Feedback:
-${q.feedback}
-`
-    )
-    .join("\n")}
+${questions}
 
 Thank you for using InterviewIQ.
 `;
 
+        const blob = new Blob([summary], {
+            type: "text/plain"
+        });
 
-        const blob =
-            new Blob(
-                [summary],
-                {
-                    type:
-                        "text/plain"
-                }
-            );
+        const url = URL.createObjectURL(blob);
 
-
-        const url =
-            URL.createObjectURL(
-                blob
-            );
-
-
-        const link =
-            document.createElement(
-                "a"
-            );
+        const link = document.createElement("a");
 
         link.href = url;
+        link.download = "InterviewIQ-Interview-Summary.txt";
 
-        link.download =
-            "InterviewIQ-Interview-Summary.txt";
-
-
-        document.body.appendChild(
-            link
-        );
-
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
 
-        document.body.removeChild(
-            link
-        );
-
-
-        URL.revokeObjectURL(
-            url
-        );
-
+        URL.revokeObjectURL(url);
 
         setTimeout(() => {
-
             setDownloading(false);
-
         }, 500);
     };
 
-
     if (loading) {
-
         return (
-
             <div className="dashboard-loading">
-
                 <div className="loader"></div>
-
-                <p>
-                    Analyzing your interview...
-                </p>
-
+                <p>Preparing your interview results...</p>
             </div>
-
         );
     }
-
 
     if (!interview) {
         return null;
     }
 
+    const score = interview.overallScore || 0;
 
-    const score =
-        interview.overallScore || 0;
+    const performance =
+        score >= 85
+            ? "Excellent"
+            : score >= 70
+            ? "Good"
+            : score >= 55
+            ? "Average"
+            : "Needs Improvement";
 
+    const strengths = interview.questions
+        .filter((question) => question.score >= 70)
+        .slice(0, 3);
 
-    let performance =
-        "Needs Improvement";
-
-
-    if (score >= 80) {
-
-        performance =
-            "Excellent";
-
-    } else if (score >= 60) {
-
-        performance =
-            "Good";
-
-    } else if (score >= 40) {
-
-        performance =
-            "Average";
-    }
-
+    const improvements = interview.questions
+        .filter((question) => question.score < 70)
+        .slice(0, 3);
 
     return (
-
         <div className="result-page">
 
-            {/* Header */}
+            {/* HEADER */}
 
             <header className="result-header">
 
@@ -283,7 +165,6 @@ Thank you for using InterviewIQ.
                     </div>
 
                     <div>
-
                         <strong>
                             InterviewIQ
                         </strong>
@@ -291,7 +172,6 @@ Thank you for using InterviewIQ.
                         <span>
                             Interview Results
                         </span>
-
                     </div>
 
                 </div>
@@ -299,9 +179,11 @@ Thank you for using InterviewIQ.
             </header>
 
 
+            {/* MAIN */}
+
             <main className="result-main">
 
-                {/* Heading */}
+                {/* HEADING */}
 
                 <section className="result-heading">
 
@@ -314,21 +196,19 @@ Thank you for using InterviewIQ.
                     </h1>
 
                     <p>
-                        Here's how you performed
-                        in your interview.
+                        Here's how you performed in your interview.
                     </p>
 
                 </section>
 
 
-                {/* Score */}
+                {/* SCORE */}
 
                 <section className="score-card">
 
                     <div className="score-circle">
 
                         <div>
-
                             <strong>
                                 {score}
                             </strong>
@@ -336,7 +216,6 @@ Thank you for using InterviewIQ.
                             <span>
                                 /100
                             </span>
-
                         </div>
 
                     </div>
@@ -349,9 +228,9 @@ Thank you for using InterviewIQ.
                         </h2>
 
                         <p>
-                            {interview.overallFeedback}
+                            {interview.overallFeedback ||
+                                "Your interview has been evaluated."}
                         </p>
-
 
                         <div className="score-label">
 
@@ -370,7 +249,7 @@ Thank you for using InterviewIQ.
                 </section>
 
 
-                {/* Stats */}
+                {/* STATS */}
 
                 <section className="result-stats">
 
@@ -395,9 +274,7 @@ Thank you for using InterviewIQ.
                                     ).length
                                 }
                                 /
-                                {
-                                    interview.questions.length
-                                }
+                                {interview.questions.length}
                             </strong>
 
                         </div>
@@ -449,11 +326,11 @@ Thank you for using InterviewIQ.
                 </section>
 
 
-                {/* Feedback */}
+                {/* FEEDBACK */}
 
                 <section className="feedback-grid">
 
-                    {/* Strengths */}
+                    {/* STRENGTHS */}
 
                     <div className="feedback-card">
 
@@ -472,30 +349,30 @@ Thank you for using InterviewIQ.
 
                         <ul>
 
-                            {(
-                                interview.strengths ||
-                                []
-                            ).map(
-                                (
-                                    strength,
-                                    index
-                                ) => (
+                            {strengths.length > 0 ? (
+                                strengths.map(
+                                    (question, index) => (
+                                        <li key={question._id || index}>
 
-                                    <li
-                                        key={
-                                            index
-                                        }
-                                    >
+                                            <span>
+                                                ✓
+                                            </span>
 
-                                        <span>
-                                            ✓
-                                        </span>
+                                            Question {index + 1} —
+                                            Score {question.score}/100
 
-                                        {strength}
-
-                                    </li>
-
+                                        </li>
+                                    )
                                 )
+                            ) : (
+                                <li>
+                                    <span>
+                                        ✓
+                                    </span>
+
+                                    Keep practicing to build
+                                    stronger answers.
+                                </li>
                             )}
 
                         </ul>
@@ -503,7 +380,7 @@ Thank you for using InterviewIQ.
                     </div>
 
 
-                    {/* Improvements */}
+                    {/* IMPROVEMENTS */}
 
                     <div className="feedback-card">
 
@@ -522,30 +399,30 @@ Thank you for using InterviewIQ.
 
                         <ul>
 
-                            {(
-                                interview.improvements ||
-                                []
-                            ).map(
-                                (
-                                    item,
-                                    index
-                                ) => (
+                            {improvements.length > 0 ? (
+                                improvements.map(
+                                    (question, index) => (
+                                        <li key={question._id || index}>
 
-                                    <li
-                                        key={
-                                            index
-                                        }
-                                    >
+                                            <span>
+                                                →
+                                            </span>
 
-                                        <span>
-                                            →
-                                        </span>
+                                            Question {index + 1} —
+                                            {question.feedback}
 
-                                        {item}
-
-                                    </li>
-
+                                        </li>
+                                    )
                                 )
+                            ) : (
+                                <li>
+                                    <span>
+                                        →
+                                    </span>
+
+                                    Continue practicing to maintain
+                                    your performance.
+                                </li>
                             )}
 
                         </ul>
@@ -555,104 +432,110 @@ Thank you for using InterviewIQ.
                 </section>
 
 
-                {/* Question Performance */}
+                {/* QUESTION-BY-QUESTION REVIEW */}
 
-                <section className="feedback-card">
+                <section className="question-review">
 
-                    <div className="feedback-title">
+                    <div className="section-heading">
 
-                        <span>
-                            📊
-                        </span>
+                        <div>
 
-                        <h2>
-                            Question Performance
-                        </h2>
+                            <h2>
+                                Question Review
+                            </h2>
+
+                            <p>
+                                Review your answers and feedback
+                            </p>
+
+                        </div>
 
                     </div>
 
 
-                    <ul>
+                    <div className="review-list">
 
                         {interview.questions.map(
-                            (
-                                question,
-                                index
-                            ) => (
+                            (question, index) => (
 
-                                <li
-                                    key={
-                                        question._id
-                                    }
-                                    style={{
-                                        display:
-                                            "block",
-                                        marginBottom:
-                                            "20px"
-                                    }}
+                                <div
+                                    className="review-card"
+                                    key={question._id || index}
                                 >
 
-                                    <strong>
-                                        Q{index + 1}.{" "}
-                                        {
-                                            question.question
-                                        }
-                                    </strong>
+                                    <div className="review-card-header">
 
-                                    <br />
+                                        <span>
+                                            Question {index + 1}
+                                        </span>
 
-                                    <small>
-                                        Score:{" "}
                                         <strong>
-                                            {
-                                                question.score
-                                            }
-                                            /100
+                                            {question.score}/100
                                         </strong>
-                                    </small>
 
-                                    <br />
+                                    </div>
 
-                                    <small>
-                                        {
-                                            question.feedback
-                                        }
-                                    </small>
 
-                                </li>
+                                    <h3>
+                                        {question.question}
+                                    </h3>
+
+
+                                    <div className="review-answer">
+
+                                        <strong>
+                                            Your Answer
+                                        </strong>
+
+                                        <p>
+                                            {question.answer ||
+                                                "No answer provided."}
+                                        </p>
+
+                                    </div>
+
+
+                                    <div className="review-feedback">
+
+                                        <strong>
+                                            AI Feedback
+                                        </strong>
+
+                                        <p>
+                                            {question.feedback ||
+                                                "No feedback available."}
+                                        </p>
+
+                                    </div>
+
+                                </div>
 
                             )
                         )}
 
-                    </ul>
+                    </div>
 
                 </section>
 
 
-                {/* Actions */}
+                {/* ACTIONS */}
 
                 <section className="result-actions">
 
                     <button
                         className="download-btn"
-                        onClick={
-                            handleDownload
-                        }
+                        onClick={handleDownload}
                     >
-
                         {downloading
                             ? "Preparing Summary..."
                             : "⬇ Download Interview Summary"}
-
                     </button>
 
 
                     <button
                         className="dashboard-btn"
                         onClick={() =>
-                            navigate(
-                                "/dashboard"
-                            )
+                            navigate("/dashboard")
                         }
                     >
                         Back to Dashboard
@@ -662,9 +545,7 @@ Thank you for using InterviewIQ.
                     <button
                         className="retry-btn"
                         onClick={() =>
-                            navigate(
-                                "/interview/setup"
-                            )
+                            navigate("/interview/setup")
                         }
                     >
                         Start Another Interview
