@@ -42,13 +42,22 @@ const interviewSchema = new mongoose.Schema(
 
         experienceLevel: {
             type: String,
-            enum: ["Fresher", "Junior", "Mid-Level", "Senior"],
+            enum: [
+                "Fresher",
+                "Junior",
+                "Mid-Level",
+                "Senior"
+            ],
             default: "Fresher"
         },
 
         difficulty: {
             type: String,
-            enum: ["Easy", "Medium", "Hard"],
+            enum: [
+                "Easy",
+                "Medium",
+                "Hard"
+            ],
             default: "Medium"
         },
 
@@ -64,9 +73,23 @@ const interviewSchema = new mongoose.Schema(
             default: ""
         },
 
+        strengths: {
+            type: [String],
+            default: []
+        },
+
+        improvements: {
+            type: [String],
+            default: []
+        },
+
         status: {
             type: String,
-            enum: ["created", "in-progress", "completed"],
+            enum: [
+                "created",
+                "in-progress",
+                "completed"
+            ],
             default: "created"
         }
     },
@@ -75,4 +98,8 @@ const interviewSchema = new mongoose.Schema(
     }
 );
 
-module.exports = mongoose.model("Interview", interviewSchema);
+module.exports =
+    mongoose.model(
+        "Interview",
+        interviewSchema
+    );

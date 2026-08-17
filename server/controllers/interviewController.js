@@ -9,30 +9,112 @@ const {
 const INTERVIEW_COST = 100;
 
 
-// TEMPORARY LOCAL ANSWER EVALUATOR
-// This can later be replaced with AI evaluation.
-const evaluateAnswer = (answer) => {
-    const length = answer.trim().length;
+// ==========================================
+// LOCAL ANSWER EVALUATOR
+// ==========================================
 
-    let score;
+const evaluateAnswer = (
+    answer,
+    question
+) => {
+
+    const text = answer.trim();
+
+    let score = 0;
+
+    // Basic answer length
+    if (text.length >= 50) {
+        score += 20;
+    }
+
+    if (text.length >= 100) {
+        score += 15;
+    }
+
+    if (text.length >= 200) {
+        score += 15;
+    }
+
+    // Explanation quality
+    const explanationWords = [
+        "because",
+        "therefore",
+        "example",
+        "for example",
+        "used",
+        "implemented",
+        "developed",
+        "approach",
+        "solution",
+        "problem",
+        "result"
+    ];
+
+    explanationWords.forEach(
+        (word) => {
+            if (
+                text.toLowerCase().includes(word)
+            ) {
+                score += 3;
+            }
+        }
+    );
+
+    // Technical vocabulary
+    const technicalWords = [
+        "api",
+        "database",
+        "backend",
+        "frontend",
+        "javascript",
+        "react",
+        "node",
+        "express",
+        "mongodb",
+        "sql",
+        "java",
+        "python",
+        "algorithm",
+        "authentication",
+        "jwt",
+        "http",
+        "rest",
+        "git",
+        "docker",
+        "cloud",
+        "server"
+    ];
+
+    technicalWords.forEach(
+        (word) => {
+            if (
+                text.toLowerCase().includes(word)
+            ) {
+                score += 2;
+            }
+        }
+    );
+
+    // Cap score
+    score = Math.min(
+        100,
+        Math.max(10, score)
+    );
+
     let feedback;
 
-    if (length < 50) {
-        score = 35;
+    if (score >= 80) {
         feedback =
-            "Answer is too brief. Explain your reasoning and provide more details or examples.";
-    } else if (length < 120) {
-        score = 55;
+            "Strong answer with good explanation and relevant technical details.";
+    } else if (score >= 60) {
         feedback =
-            "Answer shows some understanding, but it would benefit from more detail and a specific example.";
-    } else if (length < 250) {
-        score = 75;
+            "Good answer, but it could be more structured and include more specific examples.";
+    } else if (score >= 40) {
         feedback =
-            "Good answer with reasonable detail. Try to structure it more clearly and include a practical example.";
+            "The answer shows some understanding, but more explanation and technical detail are needed.";
     } else {
-        score = 90;
         feedback =
-            "Strong and detailed answer. Keep the structure clear and focus on directly addressing the question.";
+            "The answer is too brief. Explain your approach, reasoning, and provide a practical example.";
     }
 
     return {
@@ -42,15 +124,24 @@ const evaluateAnswer = (answer) => {
 };
 
 
+// ==========================================
 // CREATE INTERVIEW
-const createInterview = async (req, res) => {
+// ==========================================
+
+const createInterview = async (
+    req,
+    res
+) => {
+
     try {
+
         const {
             role,
             experienceLevel,
             difficulty,
             questionCount
         } = req.body;
+
 
         if (!role) {
             return res.status(400).json({
@@ -59,7 +150,12 @@ const createInterview = async (req, res) => {
             });
         }
 
-        const user = await User.findById(req.user._id);
+
+        const user =
+            await User.findById(
+                req.user._id
+            );
+
 
         if (!user) {
             return res.status(404).json({
@@ -68,76 +164,121 @@ const createInterview = async (req, res) => {
             });
         }
 
-        if (user.credits < INTERVIEW_COST) {
+
+        if (
+            user.credits <
+            INTERVIEW_COST
+        ) {
             return res.status(403).json({
                 success: false,
-                message: "Insufficient credits. An interview costs 100 credits."
+                message:
+                    "Insufficient credits. An interview costs 100 credits."
             });
         }
 
-        const resume = await Resume.findOne({
-            user: user._id
-        }).sort({
-            createdAt: -1
-        });
+
+        const resume =
+            await Resume.findOne({
+                user: user._id
+            }).sort({
+                createdAt: -1
+            });
+
 
         if (!resume) {
             return res.status(400).json({
                 success: false,
-                message: "Please upload a resume before starting an interview"
+                message:
+                    "Please upload a resume before starting an interview"
             });
         }
 
-        const questions = await generateInterviewQuestions({
-            resumeText: resume.extractedText,
-            role,
-            experienceLevel: experienceLevel || "Fresher",
-            difficulty: difficulty || "Medium",
-            questionCount: questionCount || 5
-        });
 
-        if (!Array.isArray(questions) || questions.length === 0) {
+        const questions =
+            await generateInterviewQuestions({
+                resumeText:
+                    resume.extractedText,
+
+                role,
+
+                experienceLevel:
+                    experienceLevel ||
+                    "Fresher",
+
+                difficulty:
+                    difficulty ||
+                    "Medium",
+
+                questionCount:
+                    questionCount || 5
+            });
+
+
+        if (
+            !Array.isArray(questions) ||
+            questions.length === 0
+        ) {
             return res.status(500).json({
                 success: false,
-                message: "AI failed to generate interview questions"
+                message:
+                    "Failed to generate interview questions"
             });
         }
 
-        const interview = await Interview.create({
-            user: user._id,
 
-            role,
+        const interview =
+            await Interview.create({
 
-            experienceLevel:
-                experienceLevel || "Fresher",
+                user: user._id,
 
-            difficulty:
-                difficulty || "Medium",
+                role,
 
-            questions: questions.map((question) => ({
-                question
-            })),
+                experienceLevel:
+                    experienceLevel ||
+                    "Fresher",
 
-            status: "in-progress"
-        });
+                difficulty:
+                    difficulty ||
+                    "Medium",
 
-        // Deduct interview credits
-        user.credits -= INTERVIEW_COST;
+                questions:
+                    questions.map(
+                        (question) => ({
+                            question
+                        })
+                    ),
+
+                status:
+                    "in-progress"
+            });
+
+
+        // Deduct credits
+        user.credits -=
+            INTERVIEW_COST;
 
         await user.save();
 
+
         res.status(201).json({
+
             success: true,
-            message: "Interview created successfully",
 
-            creditsUsed: INTERVIEW_COST,
+            message:
+                "Interview created successfully",
 
-            creditsRemaining: user.credits,
+            creditsUsed:
+                INTERVIEW_COST,
+
+            creditsRemaining:
+                user.credits,
 
             interview
+
         });
 
     } catch (error) {
+
         console.error(
             "Create Interview Error:",
             error
@@ -151,22 +292,38 @@ const createInterview = async (req, res) => {
 };
 
 
+// ==========================================
 // GET MY INTERVIEWS
-const getMyInterviews = async (req, res) => {
+// ==========================================
+
+const getMyInterviews = async (
+    req,
+    res
+) => {
+
     try {
-        const interviews = await Interview.find({
-            user: req.user._id
-        }).sort({
-            createdAt: -1
-        });
+
+        const interviews =
+            await Interview.find({
+                user: req.user._id
+            }).sort({
+                createdAt: -1
+            });
+
 
         res.status(200).json({
+
             success: true,
-            count: interviews.length,
+
+            count:
+                interviews.length,
+
             interviews
+
         });
 
     } catch (error) {
+
         console.error(
             "Get Interviews Error:",
             error
@@ -180,27 +337,46 @@ const getMyInterviews = async (req, res) => {
 };
 
 
+// ==========================================
 // GET SINGLE INTERVIEW
-const getInterviewById = async (req, res) => {
+// ==========================================
+
+const getInterviewById = async (
+    req,
+    res
+) => {
+
     try {
-        const interview = await Interview.findOne({
-            _id: req.params.id,
-            user: req.user._id
-        });
+
+        const interview =
+            await Interview.findOne({
+
+                _id: req.params.id,
+
+                user: req.user._id
+
+            });
+
 
         if (!interview) {
             return res.status(404).json({
                 success: false,
-                message: "Interview not found"
+                message:
+                    "Interview not found"
             });
         }
 
+
         res.status(200).json({
+
             success: true,
+
             interview
+
         });
 
     } catch (error) {
+
         console.error(
             "Get Interview Error:",
             error
@@ -214,81 +390,95 @@ const getInterviewById = async (req, res) => {
 };
 
 
+// ==========================================
 // SUBMIT ANSWER
-const submitAnswer = async (req, res) => {
+// ==========================================
+
+const submitAnswer = async (
+    req,
+    res
+) => {
+
     try {
+
         const {
             interviewId,
             questionId,
             answer
         } = req.body;
 
-        // Validate request
+
         if (
             !interviewId ||
             !questionId ||
             !answer?.trim()
         ) {
+
             return res.status(400).json({
+
                 success: false,
+
                 message:
                     "Interview ID, question ID and answer are required"
+
             });
         }
 
-        // Find interview belonging to logged-in user
-        const interview = await Interview.findOne({
-            _id: interviewId,
-            user: req.user._id
-        });
+
+        const interview =
+            await Interview.findOne({
+
+                _id: interviewId,
+
+                user: req.user._id
+
+            });
+
 
         if (!interview) {
+
             return res.status(404).json({
-                success: false,
-                message: "Interview not found"
-            });
-        }
 
-        // Prevent changes after completion
-        if (interview.status === "completed") {
-            return res.status(400).json({
                 success: false,
+
                 message:
-                    "This interview has already been completed"
+                    "Interview not found"
+
             });
         }
 
-        // Find question
+
         const question =
-            interview.questions.id(questionId);
+            interview.questions.id(
+                questionId
+            );
+
 
         if (!question) {
+
             return res.status(404).json({
-                success: false,
-                message: "Question not found"
-            });
-        }
 
-        // Prevent duplicate submission
-        if (
-            question.answer &&
-            question.answer.trim().length > 0
-        ) {
-            return res.status(400).json({
                 success: false,
+
                 message:
-                    "This question has already been answered"
+                    "Question not found"
+
             });
         }
 
-        const cleanedAnswer = answer.trim();
+
+        // Save answer
+        question.answer =
+            answer.trim();
+
 
         // Evaluate answer
         const evaluation =
-            evaluateAnswer(cleanedAnswer);
+            evaluateAnswer(
+                question.answer,
+                question.question
+            );
 
-        // Save answer + evaluation
-        question.answer = cleanedAnswer;
 
         question.score =
             evaluation.score;
@@ -296,7 +486,8 @@ const submitAnswer = async (req, res) => {
         question.feedback =
             evaluation.feedback;
 
-        // Check whether all questions are answered
+
+        // Check whether everything is answered
         const allAnswered =
             interview.questions.every(
                 (q) =>
@@ -304,17 +495,22 @@ const submitAnswer = async (req, res) => {
                     q.answer.trim().length > 0
             );
 
+
         if (allAnswered) {
 
-            interview.status = "completed";
+            interview.status =
+                "completed";
+
 
             // Calculate overall score
             const totalScore =
                 interview.questions.reduce(
                     (total, q) =>
-                        total + q.score,
+                        total +
+                        (q.score || 0),
                     0
                 );
+
 
             interview.overallScore =
                 Math.round(
@@ -322,25 +518,105 @@ const submitAnswer = async (req, res) => {
                     interview.questions.length
                 );
 
-            // Generate overall feedback
+
+            // Generate strengths
+            const strengths = [];
+
+
+            interview.questions.forEach(
+                (q) => {
+
+                    if (
+                        q.score >= 75
+                    ) {
+
+                        strengths.push(
+                            "Demonstrated good understanding of the topic"
+                        );
+
+                    }
+
+                }
+            );
+
+
             if (
-                interview.overallScore >= 85
+                strengths.length === 0
             ) {
+
+                strengths.push(
+                    "Completed all interview questions"
+                );
+
+            }
+
+
+            // Generate improvements
+            const improvements = [];
+
+
+            interview.questions.forEach(
+                (q) => {
+
+                    if (
+                        q.score < 60
+                    ) {
+
+                        improvements.push(
+                            "Provide more detailed and structured answers"
+                        );
+
+                    }
+
+                }
+            );
+
+
+            if (
+                improvements.length === 0
+            ) {
+
+                improvements.push(
+                    "Continue practicing with increasingly difficult questions"
+                );
+
+            }
+
+
+            interview.strengths =
+                [
+                    ...new Set(strengths)
+                ].slice(0, 3);
+
+
+            interview.improvements =
+                [
+                    ...new Set(improvements)
+                ].slice(0, 3);
+
+
+            // Overall feedback
+            if (
+                interview.overallScore >=
+                80
+            ) {
+
                 interview.overallFeedback =
-                    "Excellent performance. Your answers were detailed and showed strong understanding.";
+                    "Excellent performance! Your answers demonstrated strong technical understanding and good communication.";
+
             } else if (
-                interview.overallScore >= 70
+                interview.overallScore >=
+                60
             ) {
+
                 interview.overallFeedback =
-                    "Good performance. Your answers showed solid understanding, with some areas that can be improved.";
-            } else if (
-                interview.overallScore >= 50
-            ) {
-                interview.overallFeedback =
-                    "Fair performance. Focus on providing more structured answers and practical examples.";
+                    "Good performance. Your fundamentals are solid, but more detailed and structured answers will improve your interview performance.";
+
             } else {
+
                 interview.overallFeedback =
-                    "Your answers need more depth. Practice explaining concepts clearly and supporting your answers with examples.";
+                    "Keep practicing. Focus on explaining your reasoning, using practical examples, and providing more technical detail.";
+
             }
 
         } else {
@@ -349,35 +625,48 @@ const submitAnswer = async (req, res) => {
                 "in-progress";
         }
 
+
         await interview.save();
 
+
         res.status(200).json({
+
             success: true,
 
-            message: allAnswered
-                ? "Interview completed successfully"
-                : "Answer submitted successfully",
+            message:
+                "Answer submitted successfully",
 
             interview
+
         });
 
     } catch (error) {
+
         console.error(
             "Submit Answer Error:",
             error
         );
 
         res.status(500).json({
+
             success: false,
-            message: error.message
+
+            message:
+                error.message
+
         });
     }
 };
 
 
 module.exports = {
+
     createInterview,
+
     getMyInterviews,
+
     getInterviewById,
+
     submitAnswer
+
 };
