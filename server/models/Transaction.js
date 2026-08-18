@@ -8,13 +8,18 @@ const transactionSchema = new mongoose.Schema(
             required: true
         },
 
-        orderId: {
+        razorpayOrderId: {
             type: String,
             required: true,
             unique: true
         },
 
-        paymentId: {
+        razorpayPaymentId: {
+            type: String,
+            default: ""
+        },
+
+        razorpaySignature: {
             type: String,
             default: ""
         },
@@ -22,11 +27,6 @@ const transactionSchema = new mongoose.Schema(
         amount: {
             type: Number,
             required: true
-        },
-
-        currency: {
-            type: String,
-            default: "INR"
         },
 
         credits: {

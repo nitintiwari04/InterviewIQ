@@ -9,404 +9,201 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET
 });
 
-
-// ==========================================
-// CREDIT PACKAGES
-// ==========================================
-
-const CREDIT_PACKAGES = {
+const PLANS = {
     starter: {
         credits: 100,
-        amount: 49
+        amount: 4900
     },
 
     popular: {
         credits: 500,
-        amount: 199
+        amount: 19900
     },
 
     pro: {
         credits: 1000,
-        amount: 349
+        amount: 34900
     }
 };
 
 
-// ==========================================
-// CREATE PAYMENT ORDER
-// ==========================================
-
+// CREATE ORDER
 const createOrder = async (req, res) => {
-
     try {
+        const { plan } = req.body;
 
-        const { packageId } = req.body;
+        const selectedPlan = PLANS[plan];
 
-        const selectedPackage =
-            CREDIT_PACKAGES[packageId];
-
-        if (!selectedPackage) {
-
+        if (!selectedPlan) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid credit package"
+                message: "Invalid credit plan"
             });
         }
 
-
-        const amountInPaise =
-            selectedPackage.amount * 100;
-
-
-        const options = {
-            amount: amountInPaise,
+        const order = await razorpay.orders.create({
+            amount: selectedPlan.amount,
             currency: "INR",
-
-            receipt:
-                `iq_${req.user._id}_${Date.now()}`,
-
-            notes: {
-                userId:
-                    req.user._id.toString(),
-
-                credits:
-                    selectedPackage.credits,
-
-                packageId
-            }
-        };
-
-
-        const order =
-            await razorpay.orders.create(
-                options
-            );
-
-
-        await Transaction.create({
-
-            user: req.user._id,
-
-            orderId: order.id,
-
-            amount:
-                selectedPackage.amount,
-
-            currency: "INR",
-
-            credits:
-                selectedPackage.credits,
-
-            status: "created"
-
+            receipt: `iq_${Date.now()}`
         });
 
+        await Transaction.create({
+            user: req.user._id,
+            razorpayOrderId: order.id,
+            amount: selectedPlan.amount,
+            credits: selectedPlan.credits,
+            status: "created"
+        });
 
         res.status(201).json({
-
             success: true,
-
             order: {
                 id: order.id,
-
                 amount: order.amount,
-
-                currency:
-                    order.currency
+                currency: order.currency
             },
-
-            package: {
-                id: packageId,
-
-                credits:
-                    selectedPackage.credits,
-
-                amount:
-                    selectedPackage.amount
-            },
-
-            key:
-                process.env.RAZORPAY_KEY_ID
-
+            credits: selectedPlan.credits,
+            key: process.env.RAZORPAY_KEY_ID
         });
 
     } catch (error) {
-
-        console.error(
-            "Create Razorpay Order Error:",
-            error
-        );
+        console.error("Create Order Error:", error);
 
         res.status(500).json({
-
             success: false,
-
-            message:
-                "Unable to create payment order"
-
+            message: "Unable to create payment order"
         });
     }
 };
 
 
-// ==========================================
 // VERIFY PAYMENT
-// ==========================================
-
-const verifyPayment = async (
-    req,
-    res
-) => {
-
+const verifyPayment = async (req, res) => {
     try {
-
         const {
             razorpay_order_id,
             razorpay_payment_id,
             razorpay_signature
         } = req.body;
 
-
         if (
             !razorpay_order_id ||
             !razorpay_payment_id ||
             !razorpay_signature
         ) {
-
             return res.status(400).json({
-
                 success: false,
-
-                message:
-                    "Payment verification data is incomplete"
-
+                message: "Payment details are required"
             });
         }
 
-
-        const transaction =
-            await Transaction.findOne({
-                orderId:
-                    razorpay_order_id
-            });
-
+        const transaction = await Transaction.findOne({
+            razorpayOrderId: razorpay_order_id,
+            user: req.user._id
+        });
 
         if (!transaction) {
-
             return res.status(404).json({
-
                 success: false,
-
-                message:
-                    "Transaction not found"
-
+                message: "Transaction not found"
             });
         }
-
 
         // Prevent duplicate credit addition
-        if (
-            transaction.status ===
-            "paid"
-        ) {
-
-            const user =
-                await User.findById(
-                    req.user._id
-                );
+        if (transaction.status === "paid") {
+            const user = await User.findById(req.user._id);
 
             return res.status(200).json({
-
                 success: true,
-
-                message:
-                    "Payment was already processed",
-
-                credits:
-                    user.credits
-
+                message: "Payment already verified",
+                credits: user.credits
             });
         }
 
+        const expectedSignature = crypto
+            .createHmac(
+                "sha256",
+                process.env.RAZORPAY_KEY_SECRET
+            )
+            .update(
+                `${razorpay_order_id}|${razorpay_payment_id}`
+            )
+            .digest("hex");
 
-        // Make sure transaction belongs
-        // to the logged-in user
-        if (
-            transaction.user.toString() !==
-            req.user._id.toString()
-        ) {
-
-            return res.status(403).json({
-
-                success: false,
-
-                message:
-                    "Unauthorized transaction"
-
-            });
-        }
-
-
-        // Generate server-side signature
-        const generatedSignature =
-            crypto
-                .createHmac(
-                    "sha256",
-                    process.env
-                        .RAZORPAY_KEY_SECRET
-                )
-                .update(
-                    `${razorpay_order_id}|${razorpay_payment_id}`
-                )
-                .digest("hex");
-
-
-        if (
-            generatedSignature !==
-            razorpay_signature
-        ) {
-
-            transaction.status =
-                "failed";
-
+        if (expectedSignature !== razorpay_signature) {
+            transaction.status = "failed";
             await transaction.save();
 
-
             return res.status(400).json({
-
                 success: false,
-
-                message:
-                    "Payment signature verification failed"
-
+                message: "Invalid payment signature"
             });
         }
 
-
-        // Get user
-        const user =
-            await User.findById(
-                req.user._id
-            );
-
-
-        if (!user) {
-
-            return res.status(404).json({
-
-                success: false,
-
-                message:
-                    "User not found"
-
-            });
-        }
-
-
-        // Add credits
-        user.credits +=
-            transaction.credits;
-
-        await user.save();
-
-
-        // Mark payment as paid
-        transaction.paymentId =
-            razorpay_payment_id;
-
-        transaction.status =
-            "paid";
+        transaction.razorpayPaymentId = razorpay_payment_id;
+        transaction.razorpaySignature = razorpay_signature;
+        transaction.status = "paid";
 
         await transaction.save();
 
+        const user = await User.findById(req.user._id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        user.credits += transaction.credits;
+
+        await user.save();
 
         res.status(200).json({
-
             success: true,
-
-            message:
-                "Payment successful! Credits added.",
-
-            creditsAdded:
-                transaction.credits,
-
-            totalCredits:
-                user.credits
-
+            message: "Payment successful and credits added",
+            creditsAdded: transaction.credits,
+            totalCredits: user.credits
         });
 
     } catch (error) {
-
-        console.error(
-            "Verify Payment Error:",
-            error
-        );
+        console.error("Verify Payment Error:", error);
 
         res.status(500).json({
-
             success: false,
-
-            message:
-                "Unable to verify payment"
-
+            message: "Unable to verify payment"
         });
     }
 };
 
 
-// ==========================================
-// TRANSACTION HISTORY
-// ==========================================
-
-const getTransactions = async (
-    req,
-    res
-) => {
-
+// PAYMENT HISTORY
+const getTransactionHistory = async (req, res) => {
     try {
-
-        const transactions =
-            await Transaction.find({
-                user: req.user._id
-            })
-                .sort({
-                    createdAt: -1
-                });
-
+        const transactions = await Transaction.find({
+            user: req.user._id
+        }).sort({
+            createdAt: -1
+        });
 
         res.status(200).json({
-
             success: true,
-
             transactions
-
         });
 
     } catch (error) {
-
-        console.error(
-            "Transaction History Error:",
-            error
-        );
+        console.error("Transaction History Error:", error);
 
         res.status(500).json({
-
             success: false,
-
-            message:
-                error.message
-
+            message: "Unable to fetch transaction history"
         });
     }
 };
 
 
 module.exports = {
-
     createOrder,
-
     verifyPayment,
-
-    getTransactions
-
+    getTransactionHistory
 };
